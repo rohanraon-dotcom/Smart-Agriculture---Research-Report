@@ -1,0 +1,317 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include "DHT.h"
+
+//Sensor Pins
+
+#define  DHTPIN 4
+#define DHTTYPE DHT22
+#define PIR_PIN 27
+#define LDR_PIN 34
+
+//OUTPUT PINS
+
+#define YELLOW_LED 18
+#define BLUE_LED 19
+#define RED_LED 23
+#define BUZZER 5
+#define LIGHT_RELAY 26
+#define FAN_RELAY 25
+
+//OLED DISPLAY
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(
+  SCREEN_WIDTH,
+  SCREEN_HEIGHT,
+  &Wire,
+  -1
+);
+
+//DHT SENSOR
+
+DHT dht(DHTPIN, DHTTYPE);
+
+//SETTINGS
+
+//AS WE HAVE 3 LED'S 
+//Y FOR DARK THRESHOLD, B FOR FAN_TEMP AND R FOR WARNING
+
+#define DARK_THRESHOLD  1800
+#define FAN_TEMPERATURE 30.0
+#define WARNING_TEMPERATURE 38.0
+
+void setup(){
+
+  Serial.begin(115200);
+
+//To start the DHT 
+
+dht.begin();
+
+//Start Pins
+
+pinMode(LDR_PIN, INPUT);
+pinMode(PIR_PIN, INPUT);
+
+pinMode(YELLOW_LED, OUTPUT);
+pinMode(BLUE_LED, OUTPUT);
+pinMode(RED_LED, OUTPUT);
+
+pinMode(BUZZER, OUTPUT);
+
+pinMode(LIGHT_RELAY, OUTPUT);
+pinMode(FAN_RELAY, OUTPUT);
+
+//KEEP THE OUTPUT UNITS OFF INITIALLY!!!
+
+digitalWrite(LIGHT_RELAY, LOW);
+digitalWrite(FAN_RELAY, LOW);
+
+digitalWrite(YELLOW_LED, LOW);
+digitalWrite(RED_LED, LOW);
+digitalWrite(BLUE_LED, LOW);
+
+digitalWrite(BUZZER, LOW);
+
+//start oled
+
+if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED initialization failed!");
+    while (true);
+}
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("Smart Energy System");
+  display.setCursor(0, 20);
+  display.println("Starting...");
+  display.display();
+  delay(2000);
+
+  Serial.println("------------------------------");
+  Serial.println("SMART ENERGY MANAGEMENT SYSTEM");
+  Serial.println("------------------------------");
+}
+
+void loop(){
+
+ //READ THE DHT22
+
+ float temperature=dht.readTemperature();
+ float humidity=dht.readHumidity();
+
+ //READ LDR
+
+ int lightLevel = analogRead(LDR_PIN);
+
+ //READ PIR
+
+ int motion=digitalRead(PIR_PIN);
+ bool personDetected=(motion == HIGH);
+
+ //Check DHT22
+
+ if (isnan(temperature) || isnan(humidity)) {
+    Serial.println("DHT22 reading failed!");
+    delay(2000);
+    return;
+ }
+
+//  TO DETERMINE THE DARKNESS
+
+bool roomDark =(lightLevel < DARK_THRESHOLD);
+bool lightON=false;
+
+if(roomDark && personDetected){
+  lightON=true;
+}
+
+else{
+  lightON=false;
+}
+
+//IF PERSON DETECTED MAKE THE RELAY AND YELLOW LED ON
+
+digitalWrite(YELLOW_LED,lightON);
+digitalWrite(LIGHT_RELAY,lightON);
+
+//TO CONTROL THE FAN SMARTLY
+
+bool fanON=false;
+
+if(temperature >= FAN_TEMPERATURE){
+  fanON=true;
+}
+
+else{
+  fanON=false;
+}
+
+digitalWrite(BLUE_LED,fanON);
+digitalWrite(FAN_RELAY,fanON);
+
+//WARNING SYSTEM
+
+bool warningON=false;
+
+if(temperature >= WARNING_TEMPERATURE){
+  warningON=true;
+}
+
+else{
+  warningON=false;
+}
+
+digitalWrite(RED_LED,warningON);
+
+//BUZZER
+
+digitalWrite(BUZZER,warningON);
+
+//SERIAL MONITOR
+
+Serial.println();
+
+Serial.println("------------------------------");
+
+Serial.print("Temperature: ");
+
+Serial.print(temperature);
+
+Serial.println(" C");
+
+Serial.print("Humidity: ");
+
+Serial.print(humidity);
+
+Serial.println(" %");
+
+Serial.print("Light Level: ");
+
+Serial.print(lightLevel);
+
+Serial.print("Person: ");
+
+if(personDetected){
+
+  Serial.println("YES");
+
+}
+
+else{
+
+  Serial.println("NO");
+
+}
+
+Serial.print("Room: ");
+
+if(roomDark){
+
+  Serial.println("DARK");
+
+}
+
+else{
+
+  Serial.println("BRIGHT");
+
+}
+
+Serial.print("Light: ");
+
+if(lightON){
+
+  Serial.println("ON");
+
+}
+
+else{
+
+  Serial.println("OFF");
+
+}
+
+Serial.print("Fan: ");
+
+if(fanON){
+
+  Serial.println("ON");
+
+}
+
+else{
+
+  Serial.println("OFF");
+
+}
+
+Serial.print("Warning: ");
+
+if(warningON){
+
+  Serial.println("ON");
+
+}
+
+else{
+
+  Serial.println("OFF");
+
+}
+
+//The OLED Display
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("SMART ENERGY SYSTEM");
+  display.setCursor(0, 12);
+  display.print("Temp: ");
+  display.print(temperature, 1);
+  display.println(" C");
+  display.setCursor(0, 22);
+  display.print("Humidity: ");
+  display.print(humidity, 1);
+  display.println("%");
+  display.setCursor(0, 32);
+  display.print("Light: ");
+
+  if (lightON) {
+    display.println("ON");
+  } else {
+    display.println("OFF");
+  }
+
+  display.setCursor(0, 42);
+  display.print("Fan: ");
+
+  if (fanON) {
+    display.println("ON");
+  } else {
+    display.println("OFF");
+  }
+
+  display.setCursor(0, 52);
+
+  if (warningON) {
+    display.println("WARNING!");
+  } else if (personDetected) {
+    display.println("Person detected");
+  } else {
+    display.println("No person");
+  }
+
+  display.display();
+
+//Wait(Delay)
+
+  delay(2000);
+}
